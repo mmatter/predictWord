@@ -1,0 +1,172 @@
+---
+title: "Milestone 1 report"
+author: "Ptitmatheux"
+date: "October 18, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tm)
+library(ggplot2)
+```
+
+## Introduction
+
+## Dataset "en_US.news"
+
+```{r, echo=FALSE}
+docs <- paste(readLines(con="data/final/en_US/en_US.news.txt", n=10000), collapse=" ")
+# creating a corpus (consisting in a single large document):
+vs <- VectorSource(docs)
+wnews <- VCorpus(vs)
+
+### Some preprocessing:
+wnews <- tm_map(wnews, removeNumbers) # removing numbers
+# removing some special characters:
+regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)"
+wnews <- tm_map(wnews, content_transformer(gsub), pattern=regulexp, replacement="")
+wnews <- tm_map(wnews, stripWhitespace) # removing additional whitespaces
+wnews <- tm_map(wnews, content_transformer(tolower)) # everything to lower case:
+
+### Creating a term-document matrix:
+docmat <-TermDocumentMatrix(wnews)
+minocc <- 1 # minimal number of occurrence to consider the term
+counts <- docmat$v[docmat$v >= minocc]
+terms <- dimnames(docmat)$Terms[docmat$v >= minocc]
+names(counts) <- terms
+counts <- sort(counts, decreasing = TRUE)
+probs <- counts/sum(docmat$v) # relative frequencies of the words
+```
+
+Number of distinct words:
+
+```{r}
+length(counts)
+```
+
+Frequencies of the top 50 more frequent words:
+
+```{r}
+probs2plot <- head(probs, n=50)
+barplot(height=probs2plot, names.arg=NA)
+
+```
+
+Here are the ten most frequent words and their respective frequencies:
+
+```{r}
+head(probs, n=10)
+```
+ 
+Around one-half of the words occur only once:
+    
+```{r}
+sum(counts == 1)/length(counts) 
+```
+
+## Dataset "en_US.blogs"
+
+```{r, echo=FALSE}
+docs <- paste(readLines(con="data/final/en_US/en_US.blogs.txt", n=10000), collapse=" ")
+# creating a corpus (consisting in a single large document):
+vs <- VectorSource(docs)
+wblogs <- VCorpus(vs)
+
+### Some preprocessing:
+wblogs <- tm_map(wblogs, removeNumbers) # removing numbers
+# removing some special characters:
+regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)"
+wblogs <- tm_map(wblogs, content_transformer(gsub), pattern=regulexp, replacement="")
+wblogs <- tm_map(wblogs, stripWhitespace) # removing additional whitespaces
+wblogs <- tm_map(wblogs, content_transformer(tolower)) # everything to lower case:
+
+### Creating a term-document matrix:
+docmat <-TermDocumentMatrix(wblogs)
+minocc <- 1 # minimal number of occurrence to consider the term
+counts <- docmat$v[docmat$v >= minocc]
+terms <- dimnames(docmat)$Terms[docmat$v >= minocc]
+names(counts) <- terms
+counts <- sort(counts, decreasing = TRUE)
+probs <- counts/sum(docmat$v) # relative frequencies of the words
+```
+
+Number of distinct words:
+
+```{r}
+length(counts)
+```
+
+Frequencies of the top 50 more frequent words:
+
+```{r}
+probs2plot <- head(probs, n=50)
+barplot(height=probs2plot, names.arg=NA)
+
+```
+
+Here are the ten most frequent words and their respective frequencies:
+
+```{r}
+head(probs, n=10)
+```
+ 
+Around one-half of the words occur only once:
+    
+```{r}
+sum(counts == 1)/length(counts) 
+```
+
+## Dataset "en_US.twitter"
+
+```{r, echo=FALSE}
+docs <- paste(readLines(con="data/final/en_US/en_US.twitter.txt", n=10000), collapse=" ")
+# creating a corpus (consisting in a single large document):
+vs <- VectorSource(docs)
+wtwitter <- VCorpus(vs)
+
+### Some preprocessing:
+wtwitter <- tm_map(wtwitter, removeNumbers) # removing numbers
+# removing some special characters:
+regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)"
+wtwitter <- tm_map(wtwitter, content_transformer(gsub), pattern=regulexp, replacement="")
+wtwitter <- tm_map(wtwitter, stripWhitespace) # removing additional whitespaces
+wtwitter <- tm_map(wtwitter, content_transformer(tolower)) # everything to lower case:
+
+### Creating a term-document matrix:
+docmat <-TermDocumentMatrix(wtwitter)
+minocc <- 1 # minimal number of occurrence to consider the term
+counts <- docmat$v[docmat$v >= minocc]
+terms <- dimnames(docmat)$Terms[docmat$v >= minocc]
+names(counts) <- terms
+counts <- sort(counts, decreasing = TRUE)
+probs <- counts/sum(docmat$v) # relative frequencies of the words
+```
+
+Number of distinct words:
+
+```{r}
+length(counts)
+```
+
+Frequencies of the top 50 more frequent words:
+
+```{r}
+probs2plot <- head(probs, n=50)
+barplot(height=probs2plot, names.arg=NA)
+
+```
+
+Here are the ten most frequent words and their respective frequencies:
+
+```{r}
+head(probs, n=10)
+```
+ 
+Around one-half of the words occur only once:
+    
+```{r}
+sum(counts == 1)/length(counts) 
+```
+
+
