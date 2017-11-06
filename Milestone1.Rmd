@@ -1,7 +1,7 @@
 ---
-title: "Milestone 1 report"
+title: "Milestone 1 Report"
 author: "Ptitmatheux"
-date: "October 18, 2017"
+date: "October 25, 2017"
 output: html_document
 ---
 
@@ -9,25 +9,63 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(tm)
 library(ggplot2)
+library(reshape2)
 ```
 
 ## Introduction
 
-## Dataset "en_US.news"
+We perform an exploratory analysis of the training data that we will use for building a typesetting helper algorithm that will suggest to an user, given its input, a phrase or word completion. The goal of this preliminary work is to get some insight into the datasets, identify potential issues and define a initial strategy for developing the model.
+
+Our idea is then to consider a probabilistic model suggesting to the user, given an initial input, three word or phrase completions. These suggestions will be the three most likely outcomes given the user input entered so far. We will consider a model based on Markov chains (see the Discussion below).
 
 ```{r, echo=FALSE}
-docs <- paste(readLines(con="data/final/en_US/en_US.news.txt", n=10000), collapse=" ")
+set.seed(1234)
+```
+
+## Preprocessing
+
+The dataset used in this project consists in three ASCII files (source is [HC Corpora](https://web-beta.archive.org/web/20160930083655/http://www.corpora.heliohost.org/aboutcorpus.html)), each of them containing a compilation of text chunks coming from a given source type. Each chunk of text corresponds to a line in the file. The three source types are:
+
+* news (size: 197M and 1'010'242 lines)
+* blogs (size: 201M and 899'288 lines)
+* twitter (size: 160M and 2'360'148 lines)
+
+As the files are quite large, we work at this exploratory stage with randomly selected samples. This should be sufficient to get some insight into the data. For our processing, we use the R package `tm`, especially designed for text mining tasks.
+
+When preprocessing text data, it is common to apply standards operations such as:
+
+* removing punctuation and numbers
+* removing extra white spaces
+* changing all characters to lower case
+* removing *stopwords*, i.e., very common words such as *and*, *of*, *the*, etc.
+
+At this stage, we will not apply the last step, that is, we will keep stopwords, and possibly omit them later. We remove, numbers, extra white spaces and (most of) punctuation signs. Note that removing the end-dots might be an issue since, when studying n-grams, words normally belonging to separate sentences might be undully put together. We will deal with this issue later on.
+Finally, we will put all characters to lower-case. Probably it would be interesting in a further refinement to use the distinction upper/lower case.
+
+## An overview from "en_US.news"
+
+The following exploratory analysis is based on a random sample of around 10% of the total number of lines.
+
+```{r, echo=FALSE, cache=TRUE}
+news_all <- readLines(con="data/final/en_US/en_US.news.txt")
+```
+
+```{r, echo=FALSE}
+nsamples <- 100000
+# sampling lines and gathering all in a single character vector:
+news_sample <- paste(news_all[sample(1:length(news_all), nsamples)], collapse=" ")
 # creating a corpus (consisting in a single large document):
-vs <- VectorSource(docs)
+vs <- VectorSource(news_sample)
 wnews <- VCorpus(vs)
 
 ### Some preprocessing:
 wnews <- tm_map(wnews, removeNumbers) # removing numbers
 # removing some special characters:
-regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)"
+regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)|-"
 wnews <- tm_map(wnews, content_transformer(gsub), pattern=regulexp, replacement="")
 wnews <- tm_map(wnews, stripWhitespace) # removing additional whitespaces
 wnews <- tm_map(wnews, content_transformer(tolower)) # everything to lower case:
+#wnews <- tm_map(wnews, removeWords, stopwords(kind="en")) # removing stopwords
 
 ### Creating a term-document matrix:
 docmat <-TermDocumentMatrix(wnews)
@@ -39,47 +77,85 @@ counts <- sort(counts, decreasing = TRUE)
 probs <- counts/sum(docmat$v) # relative frequencies of the words
 ```
 
-Number of distinct words:
+We summarize our sampled data in two vectors `counts` and `probs` containing respectively the sorted number of occurences and relative frequencies of 1-grams (i.e., words). The total number of words in the sample is `r sum(counts)` whereas the number of distinct words is `r length(counts)`.
 
-```{r}
-length(counts)
-```
 
-Frequencies of the top 50 more frequent words:
-
-```{r}
-probs2plot <- head(probs, n=50)
-barplot(height=probs2plot, names.arg=NA)
-
-```
-
-Here are the ten most frequent words and their respective frequencies:
-
-```{r}
-head(probs, n=10)
-```
- 
-Around one-half of the words occur only once:
-    
-```{r}
-sum(counts == 1)/length(counts) 
-```
-
-## Dataset "en_US.blogs"
 
 ```{r, echo=FALSE}
-docs <- paste(readLines(con="data/final/en_US/en_US.blogs.txt", n=10000), collapse=" ")
+probs2plot <- head(probs, n=20)
+dfplot <- as.data.frame(melt(probs2plot))
+dfplot$word <- dimnames(dfplot)[[1]]
+dfplot$word <- factor(dfplot$word, 
+                      levels=dfplot$word[order(dfplot$value, decreasing=TRUE)])
+g <- ggplot(dfplot, aes(x=word, y=value)) + geom_bar(stat="identity")
+g <- g + ylab("frequency")
+g <- g + ggtitle("Relative frequencies of the top 20 most frequent words")
+g
+
+```
+
+The total mass of the words having a relative frequency greater than 0.5% (roughly the top ten most frequent words) is `r round(sum(probs[probs >= 0.005]), digits=2)`. On the other hand, the proportion of words occurring only once is `r round(100*sum(counts == 1)/length(counts))` percent.
+
+As we can see, only very few words have a significant mass. On the other hand, more than one half of the words occuring in the sample do appear only once. We thus have a very sparse distribution.
+
+One way to deal with such a sparse distribution might be to perform a stemming of the words in order to gather all derived words to their common root. However, it is unclear to us at this stage how this process can be efficiently reversed when doing predictions. We thus keep this as a possible further option.
+
+Let us also have a look on the distribution of 2-grams, as we shall use it later on for predicting. As we can expect, the behaviour od the distribution is similar to the one of 1-grams, but sparser.
+
+```{r, echo=FALSE}
+ordered_words <- strsplit(wnews[[1]]$content, split=" ")[[1]]
+
+ngrams <- function(seq, shift=1) {
+    seqshifted <- c(tail(seq, n=-1), rep(NA, 1))
+    if (shift == 1) {
+        output <- mapply(FUN=function(w1, w2) { paste(w1, w2, sep=" ") },
+                         seq, seqshifted)
+    } else if (shift == 2) {
+        seqshifted2 <- c(tail(seq, n=-2), rep(NA, 2))
+        output <- mapply(FUN=function(w1, w2, w3) { paste(w1, w2, w3, sep=" ") },
+                         seq, seqshifted, seqshifted2)
+    } else {
+        stop("Not allowed value for argument 'shift' !")
+    } 
+    return(head(output, n=-shift))
+}
+
+two_grams <- ngrams(ordered_words, shift=1)
+counts_2grams <- sort(table(two_grams), decreasing = TRUE)
+probs_2grams <- counts_2grams/sum(counts_2grams)
+probs2plot <- head(probs_2grams, n=10)
+dfplot <- as.data.frame(melt(probs2plot))
+g <- ggplot(dfplot, aes(x=two_grams, y=value)) + geom_bar(stat="identity")
+g <- g + ylab("frequency") + xlab("2-grams")
+g <- g + ggtitle("Relative frequencies of the top 10 most frequent 2-grams")
+g
+
+```
+ 
+## An overview from "en_US.blogs"
+
+We perform a similar analysis of the data coming from blogs:
+
+```{r, echo=FALSE, cache=TRUE}
+blogs_all <- readLines(con="data/final/en_US/en_US.blogs.txt")
+```
+
+```{r, echo=FALSE}
+nsamples <- 100000
+# sampling lines and gathering all in a single character vector:
+blogs_sample <- paste(blogs_all[sample(1:length(blogs_all), nsamples)], collapse=" ")
 # creating a corpus (consisting in a single large document):
-vs <- VectorSource(docs)
+vs <- VectorSource(blogs_sample)
 wblogs <- VCorpus(vs)
 
 ### Some preprocessing:
 wblogs <- tm_map(wblogs, removeNumbers) # removing numbers
 # removing some special characters:
-regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)"
+regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)|-"
 wblogs <- tm_map(wblogs, content_transformer(gsub), pattern=regulexp, replacement="")
 wblogs <- tm_map(wblogs, stripWhitespace) # removing additional whitespaces
 wblogs <- tm_map(wblogs, content_transformer(tolower)) # everything to lower case:
+#wblogs <- tm_map(wblogs, removeWords, stopwords(kind="en")) # removing stopwords
 
 ### Creating a term-document matrix:
 docmat <-TermDocumentMatrix(wblogs)
@@ -91,47 +167,79 @@ counts <- sort(counts, decreasing = TRUE)
 probs <- counts/sum(docmat$v) # relative frequencies of the words
 ```
 
-Number of distinct words:
+The total number of words in the sample is `r sum(counts)` whereas the number of distinct words is `r length(counts)`.
 
-```{r}
-length(counts)
-```
-
-Frequencies of the top 50 more frequent words:
-
-```{r}
-probs2plot <- head(probs, n=50)
-barplot(height=probs2plot, names.arg=NA)
-
-```
-
-Here are the ten most frequent words and their respective frequencies:
-
-```{r}
-head(probs, n=10)
-```
- 
-Around one-half of the words occur only once:
-    
-```{r}
-sum(counts == 1)/length(counts) 
-```
-
-## Dataset "en_US.twitter"
 
 ```{r, echo=FALSE}
-docs <- paste(readLines(con="data/final/en_US/en_US.twitter.txt", n=10000), collapse=" ")
+probs2plot <- head(probs, n=20)
+dfplot <- as.data.frame(melt(probs2plot))
+dfplot$word <- dimnames(dfplot)[[1]]
+dfplot$word <- factor(dfplot$word, 
+                      levels=dfplot$word[order(dfplot$value, decreasing=TRUE)])
+g <- ggplot(dfplot, aes(x=word, y=value)) + geom_bar(stat="identity")
+g <- g + ylab("frequency")
+g <- g + ggtitle("Relative frequencies of the top 20 most frequent words")
+g
+
+```
+
+The total mass of the words having a relative frequency greater than 0.5% (roughly the top ten most frequent words) is `r round(sum(probs[probs >= 0.005]), digits=2)`. On the other hand, the proportion of words occurring only once is `r round(100*sum(counts == 1)/length(counts))` percent.
+
+```{r, echo=FALSE}
+ordered_words <- strsplit(wblogs[[1]]$content, split=" ")[[1]]
+
+ngrams <- function(seq, shift=1) {
+    seqshifted <- c(tail(seq, n=-1), rep(NA, 1))
+    if (shift == 1) {
+        output <- mapply(FUN=function(w1, w2) { paste(w1, w2, sep=" ") },
+                         seq, seqshifted)
+    } else if (shift == 2) {
+        seqshifted2 <- c(tail(seq, n=-2), rep(NA, 2))
+        output <- mapply(FUN=function(w1, w2, w3) { paste(w1, w2, w3, sep=" ") },
+                         seq, seqshifted, seqshifted2)
+    } else {
+        stop("Not allowed value for argument 'shift' !")
+    } 
+    return(head(output, n=-shift))
+}
+
+two_grams <- ngrams(ordered_words, shift=1)
+counts_2grams <- sort(table(two_grams), decreasing = TRUE)
+probs_2grams <- counts_2grams/sum(counts_2grams)
+probs2plot <- head(probs_2grams, n=10)
+dfplot <- as.data.frame(melt(probs2plot))
+g <- ggplot(dfplot, aes(x=two_grams, y=value)) + geom_bar(stat="identity")
+g <- g + ylab("frequency") + xlab("2-grams")
+g <- g + ggtitle("Relative frequencies of the top 10 most frequent 2-grams")
+g
+
+```
+
+
+## An overview from "en_US.twitter"
+
+Finally, let us have a look to the data coming from twitter:
+
+```{r, echo=FALSE, cache=TRUE}
+twitter_all <- readLines(con="data/final/en_US/en_US.twitter.txt")
+```
+
+```{r, echo=FALSE}
+nsamples <- 200000
+# sampling lines and gathering all in a single character vector:
+twitter_sample <- paste(twitter_all[sample(1:length(twitter_all), nsamples)], collapse=" ")
 # creating a corpus (consisting in a single large document):
-vs <- VectorSource(docs)
+vs <- VectorSource(twitter_sample)
 wtwitter <- VCorpus(vs)
 
 ### Some preprocessing:
 wtwitter <- tm_map(wtwitter, removeNumbers) # removing numbers
 # removing some special characters:
-regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)"
+regulexp <- "\\$|\"|\\.|,|\\?|\\!|;|:|\\(|\\)|-"
 wtwitter <- tm_map(wtwitter, content_transformer(gsub), pattern=regulexp, replacement="")
 wtwitter <- tm_map(wtwitter, stripWhitespace) # removing additional whitespaces
 wtwitter <- tm_map(wtwitter, content_transformer(tolower)) # everything to lower case:
+#wtwitter <- tm_map(wtwitter, removeWords, stopwords(kind="en")) # removing stopwords
 
 ### Creating a term-document matrix:
 docmat <-TermDocumentMatrix(wtwitter)
@@ -143,30 +251,60 @@ counts <- sort(counts, decreasing = TRUE)
 probs <- counts/sum(docmat$v) # relative frequencies of the words
 ```
 
-Number of distinct words:
+The total number of words in the sample is `r sum(counts)` whereas the number of distinct words is `r length(counts)`.
 
-```{r}
-length(counts)
+
+```{r, echo=FALSE}
+probs2plot <- head(probs, n=20)
+dfplot <- as.data.frame(melt(probs2plot))
+dfplot$word <- dimnames(dfplot)[[1]]
+dfplot$word <- factor(dfplot$word, 
+                      levels=dfplot$word[order(dfplot$value, decreasing=TRUE)])
+g <- ggplot(dfplot, aes(x=word, y=value)) + geom_bar(stat="identity")
+g <- g + ylab("frequency")
+g <- g + ggtitle("Relative frequencies of the top 20 most frequent words")
+g
+
 ```
 
-Frequencies of the top 50 more frequent words:
+The total mass of the words having a relative frequency greater than 0.5% (roughly the top ten most frequent words) is `r round(sum(probs[probs >= 0.005]), digits=2)`. On the other hand, the proportion of words occurring only once is `r round(100*sum(counts == 1)/length(counts))` percent.
 
-```{r}
-probs2plot <- head(probs, n=50)
-barplot(height=probs2plot, names.arg=NA)
+```{r, echo=FALSE}
+ordered_words <- strsplit(wtwitter[[1]]$content, split=" ")[[1]]
+
+ngrams <- function(seq, shift=1) {
+    seqshifted <- c(tail(seq, n=-1), rep(NA, 1))
+    if (shift == 1) {
+        output <- mapply(FUN=function(w1, w2) { paste(w1, w2, sep=" ") },
+                         seq, seqshifted)
+    } else if (shift == 2) {
+        seqshifted2 <- c(tail(seq, n=-2), rep(NA, 2))
+        output <- mapply(FUN=function(w1, w2, w3) { paste(w1, w2, w3, sep=" ") },
+                         seq, seqshifted, seqshifted2)
+    } else {
+        stop("Not allowed value for argument 'shift' !")
+    } 
+    return(head(output, n=-shift))
+}
+
+two_grams <- ngrams(ordered_words, shift=1)
+counts_2grams <- sort(table(two_grams), decreasing = TRUE)
+probs_2grams <- counts_2grams/sum(counts_2grams)
+probs2plot <- head(probs_2grams, n=10)
+dfplot <- as.data.frame(melt(probs2plot))
+g <- ggplot(dfplot, aes(x=two_grams, y=value)) + geom_bar(stat="identity")
+g <- g + ylab("frequency") + xlab("2-grams")
+g <- g + ggtitle("Relative frequencies of the top 10 most frequent 2-grams")
+g
 
 ```
 
-Here are the ten most frequent words and their respective frequencies:
+## Discussion and Further Steps
 
-```{r}
-head(probs, n=10)
-```
- 
-Around one-half of the words occur only once:
-    
-```{r}
-sum(counts == 1)/length(counts) 
-```
+As we can see, the main common feature in all three previous samples is the sparsity of the distribution of word, respectively 2-grams, frequencies: most of the words do occur only once. Perhaps, increasing the size of the sample might reduce this proportion. On the other hand, very few words (typically *stopwords*) have a significant mass. The same phenomenon occurs with 2-grams. When building a prediction model, one issue will be to deal with the sparsity and skewness of the distribution. As previously mentioned, one approach might be to neglect at some step stopwords in order to give some emphasis and contrast to remaining words.
+
+Another issue might be *garbage* words or expressions, that is, words or expressions without any meaning (mispelled words, typesetting artefacts and so on). Hopefully, the relative frequency of these *garbage* words might be small enough (as they sould occur by accident) in order that we could easily discard them. This will however have to be confirmed while building the predictive model. 
+
+The idea for our model building is to use 1-gram, 2-grams (and possibly 3-grams) to model a Markov chain with transition probabilities given by the 2-grams relative frequencies for predicting the complete next word when a whitespace is typed, coupled with a probability model based on 1-gram frequencies for predicting the word completion when a word is being typed. The three most likely outcomes will be suggested to the user. Again, one issue when building the model might be the sparsity of the transition matrices. However, once the transition probabilities learned from the data (this can be done only once), predicting should be efficient.
 
 

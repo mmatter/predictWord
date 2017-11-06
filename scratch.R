@@ -2,15 +2,20 @@
 library(tm)
 
 ## Importing all documents from a target directory:
-# destdir <- "/media/sf_mic/Proj/learning/coursera/Capstone/"
-# sam <- VCorpus(DirSource("data/final/en_US/sample", encoding = "UTF-8"), readerControl = list(language = "en"))
 
-## Reading a given document: 
-#docs <- readLines(con="data/final/en_US/en_US.news.txt", n=10000)
+#sam <- VCorpus(DirSource("data/final/en_US", encoding = "UTF-8"), readerControl = list(language = "en"))
+
+## Reading a given document:
 # gathering all lines in a single document
-docs <- paste(readLines(con="data/final/en_US/en_US.news.txt", n=100000), collapse=" ")
+#docs <- paste(readLines(con="data/final/en_US/en_US.news.txt", n=100000), collapse=" ")
+set.seed(1234)
+news_all <- readLines(con="data/final/en_US/en_US.news.txt")
+nsamples <- 10000
+news_sample <- news_all[sample(1:length(news_all), nsamples)]
+
+
 # creating a corpus:
-vs <- VectorSource(docs)
+vs <- VectorSource(news_all)
 sam <- VCorpus(vs)
 
 ### Performing some preprocessing:
@@ -135,6 +140,8 @@ while (length(chunk <- readBin(f, "raw", 65536)) > 0) {
 }
 print(nlines)
 close(f)
+
+
 
 ## Getting the longest line (importing the full doc):
 news <- readLines(con="data/final/en_US/en_US.news.txt")
