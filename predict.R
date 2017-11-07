@@ -19,7 +19,9 @@ predict <- function(phrase, NGR, nouts=3) {
     } else if (length(splitted_bylast) == 1 & length(grep(" ", splitted_bylast)) == 0) { # the first word is being typed
         beg_nxt <- splitted_bylast[1]
     }
-    
+    #### REMOVE THAT LATER !!!
+    beg_nxt <- NULL
+    ####
     if (is.null(beg_nxt)) {
         history <- splitted_byall
         PREDS <- lapply(NGR, FUN=function(s, history, nouts) {
