@@ -15,13 +15,13 @@ dataFiles <- list("news"="data/final/en_US/en_US.news.txt",
                   "blogs"="data/final/en_US/en_US.blogs.txt",
                   "twitter"="data/final/en_US/en_US.twitter.txt") 
 
-nsamples_train <- list("news"=1000000,
-                       "blogs"=1000000,
-                       "twitter"=1000000)
+nsamples_train <- list("news"=1000,
+                       "blogs"=1000,
+                       "twitter"=1000)
 
-nsamples_test <- list("news"=10000,
-                      "blogs"=10000,
-                      "twitter"=10000)
+nsamples_test <- list("news"=100,
+                      "blogs"=100,
+                      "twitter"=100)
 
 minoccs <- list("news"=c("prior"=100, "P1"=50, "P2"=10, "P3"=5),
                 "blogs"=c("prior"=100, "P1"=50, "P2"=10, "P3"=5),

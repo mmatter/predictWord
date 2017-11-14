@@ -1,5 +1,5 @@
 
-ngrams <- function(seq, shift=1) {
+ngrams <- function(shift=1, seq) {
     seqshifted <- c(tail(seq, n=-1), rep(NA, 1))
     seqshifted2 <- c(tail(seq, n=-2), rep(NA, 2))
     seqshifted3 <- c(tail(seq, n=-3), rep(NA, 3))
