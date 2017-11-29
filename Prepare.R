@@ -16,13 +16,13 @@ dataFiles <- list("news"="data/final/en_US/en_US.news.txt",
                   "twitter"="data/final/en_US/en_US.twitter.txt") 
 
 # choose source
-src <- "blogs"
+src <- "twitter"
 print(paste0("source: ", src))
-nsam_voc <- 10000
+nsam_voc <- 2000000
 print(paste0("sample (number of lines) for vocabulary: ", nsam_voc))
-nsam_train <- 1000
+nsam_train <- 1000000
 print(paste0("sample (number of lines) for training: ", nsam_train))
-nsam_test <- 100
+nsam_test <- 10000
 print(paste0("sample (number of lines) for testing: ", nsam_test))
 
 tic <- as.numeric(Sys.time())
@@ -47,7 +47,7 @@ counts <- sort(table(ordered_words), decreasing = TRUE)
 # voc_size <- 50000
 # vocabulary <- head(counts, n=voc_size)
 # define vocabulary by frequency:
-voc_freq <- 5
+voc_freq <- 10
 print(paste0("vocabulary: retaining only words occurring more than ", voc_freq, " times"))
 vocabulary <- names(counts[counts >= voc_freq])
 rm(doc, cps)
@@ -65,14 +65,14 @@ docs <- list("train" = paste(data_all[indices_train], collapse=" "),
              "test" = paste(data_all[indices_test], collapse=" "))
 rm(data_all)
 
-ordered_words <- lapply(docs, FUN=function(doc, vocabulary) {
+ordered_words <- mclapply(docs, FUN=function(doc, vocabulary) {
     vs <- VectorSource(doc) # creating a corpus (consisting in a single large document)
     cps <- VCorpus(vs)
     cps <- preprocess(cps) # some preprocessing
     tmp <- strsplit(cps[[1]]$content, split=" ")[[1]]
     output <- ifelse(!(tmp %in% vocabulary), "<UNK>", tmp) # replacing words not in vocabulary by generic word 
     return(output)
-}, vocabulary)
+}, vocabulary, mc.cores=2)
 rm(docs)
 
 toc <- as.numeric(Sys.time())
@@ -89,7 +89,8 @@ print(paste("elapsed time in seconds:", round(toc-tic, digits=2)))
 
 #------------------------------------------------------------------------
 ## Saving data:
-save(NGR_model, vocabulary, file=paste0("learned_data/learned_", src, "_10000.Rdata"))
+TEST <- ordered_words$test
+save(NGR_model, TEST, vocabulary, file=paste0("learned_data/learned_", src, "_10E6.Rdata"))
 
 toc_tot <- as.numeric(Sys.time())
 print(paste("Total elapsed time in seconds:", round(toc_tot-tic_tot, digits=2)))

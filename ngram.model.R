@@ -12,21 +12,21 @@ ngram.model <- function(n, text) {
         
         ngr <- 1:(n-1)
         names(ngr) <- head(c("bigrams", "trigrams", "quadgrams"), n=n-1)
-        TMP <- lapply(lapply(ngr, FUN=ngrams, text), function(ngr) {
+        TMP <- mclapply(lapply(ngr, FUN=ngrams, text), function(ngr) {
             counts <- sort(table(ngr), decreasing = TRUE)
             return(counts)
-        })
+        }, mc.cores = 3)
         NGR_cnts <- c(NGR_cnts, TMP)
         
         # Pruning the ngrams sets
-        minocc <- list("unigrams"=1, "bigrams"=5, "trigrams"=5, "quadgrams"=5)
+        minocc <- list("unigrams"=1, "bigrams"=5, "trigrams"=3, "quadgrams"=1)
         NGR_freq <- mapply(FUN=function(mo, ngr) { ngr[ngr >= mo] }, minocc, NGR_cnts)
         
         NGR_model <- list()
         NGR_model[["unigrams"]] <- NGR_cnts$unigrams/sum(NGR_cnts$unigrams)
         nmodel <- 2:n
         names(nmodel) <- head(c("bigrams", "trigrams", "quadgrams"), n=n-1)
-        TMP <- lapply(nmodel, function(m, NGR_freq) {
+        TMP <- mclapply(nmodel, function(m, NGR_freq) {
             
             splitted <- do.call(rbind, strsplit(names(NGR_freq[[m]]), ' (?=[^ ]+$)', perl=TRUE))
             wstart <- unique(splitted[, 1])
@@ -43,7 +43,7 @@ ngram.model <- function(n, text) {
             
             return(P)
             
-        }, NGR_freq)
+        }, NGR_freq, mc.cores=3)
         
         NGR_model <- c(NGR_model, TMP)
     }
