@@ -9,35 +9,38 @@
 
 library(shiny)
 
-source("../ngrams.R")
+#source("../ngrams.R")
 source("../prediction.R")
 
-load("../learned.Rdata")
+NGR_all <- list()
+load("../learned_data/learned_news_10000.Rdata")
+NGR_all[[1]] <- NGR_model
+rm(NGR_model)
+load("../learned_data/learned_blogs_300000.Rdata")
+NGR_all[[2]] <- NGR_model
+rm(NGR_model)
+load("../learned_data/learned_twitter_100000.Rdata")
+NGR_all[[3]] <- NGR_model
+rm(NGR_model)
+
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output, session) {
     
     sugg <- eventReactive(input$typed, {
-        # taking input text and considering only the n=2 last words:
-        splitted <- strsplit(input$typed, split=" ")[[1]]
-        
-        if (length(splitted) == 0) {
-            lastwords <- c("", "")
-        } else if (length(splitted) == 1) {
-            lastwords <- c("", splitted)
-        } else {
-            lastwords <- tail(splitted, n=2)
-        }
-
+       
         # compute prediction...
-        output <- names(prediction(beg=lastwords[2], v=lastwords[1], nouts=3))
-        
+        if (input$typed != "") {
+            output <- names(prediction(tolower(input$typed), NGR_all, nouts=3))
+        }
+        else {
+            output <- rep("", times=3)
+        }
         return(output)
     } )
     
     # Updating action buttons with latest prediction given the input:
     observeEvent(input$typed, {
-        #print(sugg())
         updateActionButton(session, inputId="sugg1", label=sugg()[1])
         updateActionButton(session, inputId="sugg2", label=sugg()[2])
         updateActionButton(session, inputId="sugg3", label=sugg()[3])
@@ -45,18 +48,38 @@ shinyServer(function(input, output, session) {
     
     # Updating the text input according to the selected action button:
     observeEvent(input$sugg1, {
-        newval <- paste(head(strsplit(input$typed, split=" ")[[1]], n=-1), sugg()[1])
+        splitted_bylast <- strsplit(input$typed, " (?=[^ ]+$)", perl=TRUE)[[1]]
+        if (length(splitted_bylast) == 2) { # the next word is being typed
+            newval <- paste(splitted_bylast[1], sugg()[1])
+        } else if (length(splitted_bylast) == 1 & length(grep(" ", splitted_bylast)) > 0) { # phrase ends by a space
+            newval <- paste0(input$typed, sugg()[1])
+        } else if (length(splitted_bylast) == 1 & length(grep(" ", splitted_bylast)) == 0) { # the first word is being typed
+            newval <- sugg()[1]
+        }
         updateTextInput(session, inputId="typed", value=newval)
-        print(newval)
     })
     
     observeEvent(input$sugg2, {
-        newval <- paste(head(strsplit(input$typed, split=" ")[[1]], n=-1), sugg()[2])
+        splitted_bylast <- strsplit(input$typed, " (?=[^ ]+$)", perl=TRUE)[[1]]
+        if (length(splitted_bylast) == 2) { # the next word is being typed
+            newval <- paste(splitted_bylast[1], sugg()[2])
+        } else if (length(splitted_bylast) == 1 & length(grep(" ", splitted_bylast)) > 0) { # phrase ends by a space
+            newval <- paste0(input$typed, sugg()[2])
+        } else if (length(splitted_bylast) == 1 & length(grep(" ", splitted_bylast)) == 0) { # the first word is being typed
+            newval <- sugg()[2]
+        }
         updateTextInput(session, inputId="typed", value=newval)
     })
     
     observeEvent(input$sugg3, {
-        newval <- paste(head(strsplit(input$typed, split=" ")[[1]], n=-1), sugg()[3])
+        splitted_bylast <- strsplit(input$typed, " (?=[^ ]+$)", perl=TRUE)[[1]]
+        if (length(splitted_bylast) == 2) { # the next word is being typed
+            newval <- paste(splitted_bylast[1], sugg()[2])
+        } else if (length(splitted_bylast) == 1 & length(grep(" ", splitted_bylast)) > 0) { # phrase ends by a space
+            newval <- paste0(input$typed, sugg()[2])
+        } else if (length(splitted_bylast) == 1 & length(grep(" ", splitted_bylast)) == 0) { # the first word is being typed
+            newval <- sugg()[2]
+        }
         updateTextInput(session, inputId="typed", value=newval)
     })
     
