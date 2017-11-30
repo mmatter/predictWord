@@ -1,0 +1,19 @@
+---
+title: "Easywriter user doc"
+author: "Ptitmatheux"
+date: "November 30, 2017"
+output: html_document
+---
+
+### How does it work?
+
+Just start typing your phrase and the Easywriter will suggest you plausible next words as follows:
+
+* Given your input so far, three most likely continuations are displayed.
+
+* If you are currently typing a word, it helps you to complete the word. 
+
+* If you have just finished typing a whole word, that is, **if your phrase ends by a space**, then it suggests you full next words.
+
+* Just click on the correct suggestion to add it to what you are writing !
+

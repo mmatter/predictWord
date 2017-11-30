@@ -13,23 +13,19 @@ library(shiny)
 shinyUI(fluidPage(
   
   # Application title
-  titlePanel("Easy Writer"),
-  
-  # Sidebar with a slider input for number of bins 
+  titlePanel("Easywriter"),
+ 
   sidebarLayout(
     sidebarPanel(
-        textInput(inputId="typed", label="Type your message here", value = "", width = NULL, placeholder = NULL),
-        actionButton(inputId="sugg1", label="", icon = NULL, width = NULL),
-        actionButton(inputId="sugg2", label="", icon = NULL, width = NULL),
-        actionButton(inputId="sugg3", label="", icon = NULL, width = NULL),
-        #uiOutput("moreControls")
-        h3(""),
-        actionButton(inputId="go", label="send message", icon = NULL, width = NULL)
+        includeMarkdown("Doc.Rmd"),
+        textInput(inputId="typed", label="Type your phrase here", value = "", width = NULL, placeholder = NULL),
+        uiOutput("buttons"),
+        tags$p("The most likely prediction given your input (entire next word or word completion) is:"),
+        span(textOutput("bestpred"), style="color:red")
     ),
     
-    # Show a plot of the generated distribution
     mainPanel(
-       textOutput("sentMessage")
+
     )
   )
 ))

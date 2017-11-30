@@ -31,7 +31,6 @@ prediction <- function(phrase, NGR_all, nouts=5) {
         beg_nxt <- splitted_bylast[1]
     }
     
-    
     pred_all <- lapply(NGR_all, FUN=function(NGR) { # NGR_all=list(NGR_news, NGR_twitter, NGR_blogs)
         stupid_backoff <- 0.4
         morder_max <- 4
